@@ -9,6 +9,9 @@ fd1 = nltk.FreqDist(word_tokenize(data.decode('utf-8')))
 freq = sorted(list(set(fd1.values())), reverse=True)
 max_min_count = freq[1]
 print max_min_count
+print fd1.most_common(10)
+
+
 
 sentences = sent_tokenize(data.decode('utf-8'))
 tokenized_sentences = []
@@ -19,3 +22,4 @@ for sentence in sentences:
 
 model = Word2Vec(tokenized_sentences, size=100, min_count=max_min_count)
 print model.vocab
+

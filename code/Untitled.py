@@ -1,4 +1,4 @@
-t = [['a', 'b', 'c'], ['d', 'a', 'e']]
+t = [['a', 'b', 'c'], ['d', 'a', 'e', 'e']]
 
 # In[3]:
 
@@ -7,7 +7,7 @@ from gensim.models import Word2Vec
 
 # In[ ]:
 
-model = Word2Vec(t, min_count=1)
+model = Word2Vec(t, min_count=2)
 
 
 # In[17]:
