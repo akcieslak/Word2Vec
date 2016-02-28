@@ -3,75 +3,56 @@ import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from gensim.models import Word2Vec
 import os.path
-#import enchant
 import nltk
 from nltk.corpus import stopwords
 import en
 import string
 import operator
+from nltk.stem.wordnet import WordNetLemmatizer
+import csv
 
 
+
+# NOTE: word2vec_new will take out the stop words to get the top 50 words and then train 
+# word2vec with data w/o stop words to find the first 5 similar words to the top 50 words
+
+FILENAME = os.path.dirname(os.path.abspath(__file__)) + '/../data/testText.txt'
 
 class Value:
-    def __init__ (self, word, position, sentenceNum, sentenceInd):
+    def __init__ (self, word, sentenceNum, sentenceInd):
         self.word = word
         self.count = 1
-        self.positionArray = [position]
         self.sentenceArray = [(sentenceNum, sentenceInd)]
         self.avgPol = 0
         self.avgSub = 0
 
-    def update(self, position, sentenceNum, sentenceInd):
+    def update(self, sentenceNum, sentenceInd):
         self.count += 1
-        self.positionArray.append(position)
         self.sentenceArray.append((sentenceNum, sentenceInd))
 
     def getCount(self):
         return self.count
 
-    def getPositionArray(self):
-        return self.positionArray
-
     def getWord(self):
         return self.word
 
-    def getSentenceArray(self):
-        return self.sentenceArray
 
-    def setAvgPol(self, avg):
-        self.avgPol = avg
-
-    def getAvgPol(self):
-        return self.avgPol
-
-    def setAvgSub(self, avg):
-        self.avgSub = avg
-
-    def getAvgSub(self):
-        return self.avgSub
-
-with open(os.path.dirname(os.path.abspath(__file__)) + '/../data/testText.txt', 'r') as FILE:
-   data = FILE.read()
-
-
-#Another option: take out the stop words and then tokenize each word and pass it through
-#try to also use stemming and lemmatization: are, is --> be. Article:
-
-#Finding the 50 most common words. Exclusing stop words:
+#Finding the 50 most common words. Excluding stop words:
 SIZE = 50
-#d = enchant.Dict("en_US")
-with open(os.path.dirname(os.path.abspath(__file__)) + '/../data/testText.txt', 'r') as FILE2:
-	text = FILE2.read()
+with open(FILENAME, 'r') as FILE2:
+    TEXT = FILE2.read()
+
 
 CACHEDSTOPWORDS = stopwords.words('english')
 PUNCTUATION = string.maketrans(string.punctuation, ' ' * len(string.punctuation))
 
 DICTIONARY = {}
 POSITION = 0
+DATA = []
 
 splitFile = []
-sentences = text.split(".")
-
+sentences = TEXT.split(".")
+wnl = WordNetLemmatizer();
 
 for i in range(len(sentences) - 1):
     line = sentences[i].translate(PUNCTUATION)
@@ -80,57 +61,48 @@ for i in range(len(sentences) - 1):
     r = 0
     for point in line:
         lword = point.lower()
-        POSITION += 1
-        lword = en.noun.singular(lword)
+        lword = wnl.lemmatize(lword, pos='v')
         if lword not in CACHEDSTOPWORDS:
             if lword != '' and lword != "re":
                 if (len(lword) > 1):
-                    try:
-                        lword = en.verb.present(lword)
-                        lword = en.verb.infinitive(lword)
-                    except Exception:
-                        pass
+                    DATA += [lword];
                     if (lword in DICTIONARY):
-                        DICTIONARY[lword].update(POSITION, i, r)
+                        DICTIONARY[lword].update(i, r)
                     else:
-                        temp = Value(lword, POSITION, i, r)
+                        temp = Value(lword, i, r)
                         DICTIONARY[lword] = temp
                 
         r += 1
 
 
+#write to file so that we can read in the file again
+with open('workingfile.txt', 'w') as f:
+    for word in DATA:
+        f.write(word.encode('utf-8') + " ");
+
+with open(os.path.dirname(os.path.abspath(__file__)) + '/workingfile.txt', 'r') as FILE2:
+    NEWTEXT = FILE2.read()
 
 
 cmpfun = operator.attrgetter("count")
 sortedDict = sorted(DICTIONARY.values(), key=cmpfun, reverse = True)
 
+## Saving the top 50 words in the topWords
 topWords = []
 j = 0
 while j < SIZE:
     topWords.append(sortedDict[j])
-    print sortedDict[j].getWord()
     j += 1
 
 
-
-
 #Uses Word2Vec with original file
-fd1 = nltk.FreqDist(word_tokenize(data.decode('utf-8')))
+fd1 = nltk.FreqDist(word_tokenize(NEWTEXT.decode('utf-8')))
 freq = sorted(list(set(fd1.values())), reverse=True)
 max_min_count = freq[1]
-print "FD1"
-print
-print
-print max_min_count
-print fd1.most_common(10)
-for word in fd1.most_common(10):
-    print word[0]
 
 
-print
-print
-print "WORD2VEC MODEL"
-sentences = sent_tokenize(data.decode('utf-8'))
+
+sentences = sent_tokenize(NEWTEXT.decode('utf-8'))
 tokenized_sentences = []
 for sentence in sentences:
     words = word_tokenize(sentence)
@@ -146,15 +118,21 @@ for sentence in sentences:
 #alpha: the initial learning rate (will linearly drop to sero as training progresses)
 
 
-# model = gensim.models.Word2Vec();
-# model.build_vocab(tokenized_sentences);
-# model.train(tokenized_sentences);
 model = gensim.models.Word2Vec(tokenized_sentences, min_count=10)
 
-word = 'school'
-print "Top five most similar words to: " + word
-print model.most_similar(word, topn = 5)
 
+## Getting word2vecs most similar words of the 50 most common words
+with open('output.csv', 'wb') as c:
+    writer = csv.writer(c)
+    writer.writerow(['Word', 'Similar Word', 'Value of Similarity'])
+    count = 1
+    for word in topWords:
+        try :
+            writer.writerow([word.getWord()])
+            for case in model.most_similar(word.getWord(), topn = 5):
+                writer.writerow([" ", case[0], case[1]])
+        except KeyError :
+            writer.writerow([word.getWord(), "null"])        
 
-#print model.doesnt_match("breakfast cereal dinner lunch".split())
-print model.similarity('school', 'opportunities')
+        count += 1
+
