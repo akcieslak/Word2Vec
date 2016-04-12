@@ -10,13 +10,16 @@ import string
 import operator
 from nltk.stem.wordnet import WordNetLemmatizer
 import csv
+import sys
 
 
+# word2vec will take out the stop words to get the top 50 words and then train 
+# word2vec with the original data or data w/o stop words (user given choice) to 
+# find the first 5 similar words and their value of similarity to the top 50 words
 
-# word2vec_new will take out the stop words to get the top 50 words and then train 
-# word2vec with the original data to find the first 5 similar words to the top 50 words
-
-FILENAME = os.path.dirname(os.path.abspath(__file__)) + '/../data/testText.txt'
+VAR_FILENAME = raw_input("Please enter a filename (Please include extension): ")
+MIN_COUNT = int(raw_input("Enter a mincount depending on size of your file: "))
+FILENAME = os.path.dirname(os.path.abspath(__file__)) + '/../data/' + VAR_FILENAME
 
 
 class Value:
@@ -38,18 +41,26 @@ class Value:
         return self.word
 
 
-
-
 #Finding the 50 most common words. Excluding stop words:
 SIZE = 50
-with open(FILENAME, 'r') as FILE2:
-	TEXT = FILE2.read()
+try: 
+    with open(FILENAME, 'r') as FILE2:
+	   TEXT = FILE2.read()
+except IOError as detail:
+    print "Sorry, could not find filename: " + VAR_FILENAME
+    sys.exit()
 
 CACHEDSTOPWORDS = stopwords.words('english')
 PUNCTUATION = string.maketrans(string.punctuation, ' ' * len(string.punctuation))
 
 DICTIONARY = {}
 POSITION = 0
+DATA = []
+
+STOP = False
+VAR_TRAINING = raw_input("Would you like to filter the data before training? (Y/N)")
+if (VAR_TRAINING == 'Y'):
+    STOP = True;
 
 splitFile = []
 sentences = TEXT.split(".")
@@ -66,6 +77,10 @@ for i in range(len(sentences) - 1):
         if lword not in CACHEDSTOPWORDS:
             if lword != '' and lword != "re":
                 if (len(lword) > 1):
+                    ## Word2Vec New
+                    if (STOP == True):
+                        DATA += [lword];
+                    ##
                     if (lword in DICTIONARY):
                         DICTIONARY[lword].update(i, r)
                     else:
@@ -74,7 +89,16 @@ for i in range(len(sentences) - 1):
                 
         r += 1
 
+## Using the data w/o stop words
+if (STOP == True):
+    with open('workingfile.txt', 'w') as f:
+        for word in DATA:
+            f.write(word.encode('utf-8') + " ");
 
+    with open(os.path.dirname(os.path.abspath(__file__)) + '/workingfile.txt', 'r') as FILE2:
+        NEWTEXT = FILE2.read()
+
+    TEXT = NEWTEXT
 
 
 cmpfun = operator.attrgetter("count")
@@ -88,7 +112,6 @@ while j < SIZE:
     j += 1
 
 
-#Uses Word2Vec with original file
 fd1 = nltk.FreqDist(word_tokenize(TEXT.decode('utf-8')))
 freq = sorted(list(set(fd1.values())), reverse=True)
 max_min_count = freq[1]
@@ -110,21 +133,26 @@ for sentence in sentences:
 #workers: amount of workers used to train the model
 #alpha: the initial learning rate (will linearly drop to sero as training progresses)
 
+try:
+    model = gensim.models.Word2Vec(tokenized_sentences, min_count=MIN_COUNT)
+except RuntimeError:
+    print "There was an error. Your min_count needs to be smaller"
+    sys.exit()
 
-model = gensim.models.Word2Vec(tokenized_sentences, min_count=10)
-
+VAR_OUTPUT = raw_input("Enter an output file(no extension): ")
 ## Getting word2vecs most similar words of the 50 most common words
-with open('output.csv', 'wb') as c:
+
+with open(VAR_OUTPUT + '.csv', 'wb') as c:
     writer = csv.writer(c)
     writer.writerow(['Word', 'Similar Word', 'Value of Similarity'])
     count = 1
     for word in topWords:
         try :
-            writer.writerow([word.getWord()])
+            writer.writerow([word.getWord().encode('utf-8')])
             for case in model.most_similar(word.getWord(), topn = 5):
                 writer.writerow([" ", case[0], case[1]])
         except KeyError :
-            writer.writerow([word.getWord(), "null"])        
+            writer.writerow([word.getWord().encode('utf-8'), "null"])        
 
         count += 1
 
